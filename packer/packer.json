@@ -1,0 +1,57 @@
+{
+  "variables": {
+      "client_id": "{{env `TF_VAR_CLIENT_ID`}}",
+      "client_secret": "{{env `TF_VAR_CLIENT_SECRET`}}",
+      "tenant_id": "{{env `TF_VAR_TENANT_ID`}}",
+      "subscription_id": "{{env `TF_VAR_SUBSCRIPTION_ID`}}",
+      "managed_image_resource_group_name": "{{env `TF_VAR_PACKER_RG`}}",
+      "managed_image_name": "{{env `TF_VAR_PACKERNAME`}}",
+      "location": "{{env `TF_VAR_LOCATION`}}"
+  },
+  "builders": [
+    {
+      "type": "azure-arm",
+      "client_id": "{{user `client_id`}}",
+      "client_secret": "{{user `client_secret`}}",
+      "tenant_id": "{{user `tenant_id`}}",
+      "subscription_id": "{{user `subscription_id`}}",
+      "managed_image_resource_group_name": "{{user `managed_image_resource_group_name`}}",
+      "managed_image_name": "{{user `managed_image_name`}}",
+      "os_type": "Windows",
+      "image_publisher": "MicrosoftWindowsDesktop",
+      "image_offer": "Windows-10",
+      "image_sku": "rs5-pro",
+      "communicator": "winrm",
+      "winrm_use_ssl": true,
+      "winrm_insecure": true,
+      "winrm_timeout": "5m",
+      "winrm_username": "packer",
+      "azure_tags": {
+        "dept": "Engineering",
+        "task": "Image deployment"
+      },
+      "location": "{{user `location`}}",
+      "vm_size": "Standard_D2_v2"
+    }],
+  "provisioners": [
+    {
+      "type": "windows-shell",
+      "inline": [
+            "dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart",
+            "@\"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \"[System.Net.ServicePointManager]::SecurityProtocol = 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))\" && SET \"PATH=%PATH%;%ALLUSERSPROFILE%\\chocolatey\\bin\"",
+            "choco install vscode -y"
+        ]
+    },
+    {
+      "type": "windows-restart",
+      "restart_check_command": "powershell -command \"& {Write-Output 'restarted packer windows vm.'}\""
+    },
+    {
+    "type": "powershell",
+    "inline": [
+      "& $env:SystemRoot\\System32\\Sysprep\\Sysprep.exe /oobe /generalize /quiet /quit",
+      "while($true) { $imageState = Get-ItemProperty HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Setup\\State | Select ImageState; if($imageState.ImageState -ne 'IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE') { Write-Output $imageState.ImageState; Start-Sleep -s 10  } else { break } }"
+    ]
+   }
+  ]
+}
